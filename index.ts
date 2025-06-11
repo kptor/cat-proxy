@@ -8,11 +8,10 @@ import type { CoreSystemMessage, CoreUserMessage } from "ai";
 import http from "http";
 import { URL } from "url";
 
-const CAT_PROXY_PORT_STRING = process.env.CAT_PROXY_PORT;
-if (!CAT_PROXY_PORT_STRING) {
-  throw new Error("CAT_PROXY_PORT is not set");
+if (!process.env.PORT) {
+  throw new Error("PORT is not set");
 }
-const CAT_PROXY_PORT = parseInt(CAT_PROXY_PORT_STRING);
+const PORT = parseInt(process.env.PORT);
 
 // Helper function to parse JSON from request body
 async function parseRequestBody(req: http.IncomingMessage): Promise<any> {
@@ -130,8 +129,8 @@ const server = http.createServer(async (req, res) => {
   res.end("Not Found");
 });
 
-server.listen(CAT_PROXY_PORT, () => {
-  console.log("Listening on " + CAT_PROXY_PORT);
+server.listen(PORT, () => {
+  console.log("Listening on " + PORT);
 });
 
 // TODO: move this to a separate file
