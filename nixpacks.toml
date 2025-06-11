@@ -5,4 +5,7 @@ nixPkgs = ["bun"]
 cmds = ["bun install"]
 
 [phases.start]
-cmd = "bun run start" 
+cmd = "bun run start"
+
+[variables]
+BP_BUN = "true" 
