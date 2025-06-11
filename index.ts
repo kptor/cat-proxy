@@ -33,7 +33,7 @@ async function parseRequestBody(req: http.IncomingMessage): Promise<any> {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url!, `http://localhost:${CAT_PROXY_PORT}`);
+  const url = new URL(req.url!, `http://localhost:${PORT}`);
   
   if (url.pathname === "/v1/chat/completions") {
     if (req.method !== "POST") {
