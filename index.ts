@@ -13,7 +13,7 @@ const server = Bun.serve({
   port: CAT_PROXY_PORT,
   async fetch(req) {
     const url = new URL(req.url);
-    if (url.pathname === "/completions") {
+    if (url.pathname === "/v1/chat/completions") {
       if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
       }
@@ -63,7 +63,7 @@ const server = Bun.serve({
   },
 });
 
-console.log("Listening on http://localhost:" + CAT_PROXY_PORT);
+console.log("Listening on " + CAT_PROXY_PORT);
 
 // TODO: move this to a separate file
 
