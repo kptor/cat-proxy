@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { CoreSystemMessage, CoreUserMessage } from "ai";
 import http from "http";
 import { URL } from "url";
+import { verifyToken } from "@clerk/backend";
 
 if (!process.env.PORT) {
   throw new Error("PORT is not set");
@@ -32,6 +33,43 @@ async function parseRequestBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+// Helper function to extract bearer token from Authorization header
+function extractBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.substring(7); // Remove 'Bearer ' prefix
+}
+
+// Helper function to verify authentication
+async function verifyAuthentication(req: http.IncomingMessage): Promise<{ success: boolean; error?: string }> {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = extractBearerToken(authHeader);
+    
+    if (!token) {
+      return { success: false, error: "Missing or invalid Authorization header" };
+    }
+
+    // Verify token using Clerk's verifyToken with secretKey
+    if (!process.env.CLERK_SECRET_KEY) {
+      throw new Error("CLERK_SECRET_KEY environment variable is required");
+    }
+
+    await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY,
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Token verification failed:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Token verification failed" 
+    };
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url!, `http://localhost:${PORT}`);
   
@@ -39,6 +77,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== "POST") {
       res.writeHead(405, { "Content-Type": "text/plain" });
       res.end("Method Not Allowed");
+      return;
+    }
+    
+    // Verify authentication before processing the request
+    const authResult = await verifyAuthentication(req);
+    console.log(`Authentication result: ${authResult.success ? 'Success' : 'Failed'}${authResult.error ? ` - ${authResult.error}` : ''}`);
+    
+    if (!authResult.success) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        error: "Unauthorized", 
+        details: authResult.error 
+      }));
       return;
     }
     
