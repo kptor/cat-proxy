@@ -51,28 +51,135 @@ async function verifyAuthentication(req: http.IncomingMessage): Promise<{ succes
       return { success: false, error: "Missing or invalid Authorization header" };
     }
 
-    // Verify token using Clerk's verifyToken with secretKey
-    if (!process.env.CLERK_SECRET_KEY) {
-      throw new Error("CLERK_SECRET_KEY environment variable is required");
+    // Validate token with Clerk's OAuth userinfo endpoint
+    const userInfoUrl = process.env.CLERK_OAUTH_USER_INFO_URL;
+    if (!userInfoUrl) {
+      console.error('CLERK_OAUTH_USER_INFO_URL environment variable is not set');
+      return { success: false, error: "Server configuration error" };
     }
 
-    await verifyToken(token, {
-      secretKey: process.env.CLERK_SECRET_KEY,
+    const response = await fetch(userInfoUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: "Invalid or expired access token" };
+      }
+      
+      console.error(`Clerk userinfo request failed: ${response.status} ${response.statusText}`);
+      return { success: false, error: "Authentication service unavailable" };
+    }
+
+    const userInfo = await response.json();
+    console.log('User authenticated:', userInfo.sub); // Log user ID for debugging
     
     return { success: true };
   } catch (error) {
-    console.error("Token verification failed:", error);
+    console.error("Authentication verification error:", error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : "Token verification failed" 
+      error: error instanceof Error ? error.message : "Internal server error during authentication" 
     };
   }
+}
+
+// Health check function to verify system components
+async function checkHealth(): Promise<{ 
+  status: 'healthy' | 'unhealthy';
+  checks: Record<string, { 
+    status: 'ok' | 'error';
+    message?: string;
+  }>;
+}> {
+  const checks: Record<string, { status: 'ok' | 'error'; message?: string }> = {};
+
+  // Check required environment variables
+  const requiredEnvVars = [
+    'PORT',
+    'CLERK_OAUTH_USER_INFO_URL',
+    'AZURE_AI_RESOURCE_NAME',
+    'AZURE_AI_API_KEY'
+  ];
+
+  checks.environment = {
+    status: 'ok'
+  };
+
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      checks.environment = {
+        status: 'error',
+        message: `Missing required environment variable: ${envVar}`
+      };
+      break;
+    }
+  }
+
+  // Check Azure AI connection
+  try {
+    const azure = makeAzureProviderInstance();
+    checks.azureConnection = {
+      status: 'ok'
+    };
+  } catch (error) {
+    checks.azureConnection = {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Failed to initialize Azure AI'
+    };
+  }
+
+  // Check Clerk authentication service
+  try {
+    const response = await fetch(process.env.CLERK_OAUTH_USER_INFO_URL || '', {
+      method: 'HEAD'
+    });
+    checks.clerkService = {
+      status: response.ok ? 'ok' : 'error',
+      message: response.ok ? undefined : `Clerk service returned status ${response.status}`
+    };
+  } catch (error) {
+    checks.clerkService = {
+      status: 'error',
+      message: 'Failed to connect to Clerk service'
+    };
+  }
+
+  // Determine overall status
+  const isHealthy = Object.values(checks).every(check => check.status === 'ok');
+
+  return {
+    status: isHealthy ? 'healthy' : 'unhealthy',
+    checks
+  };
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url!, `http://localhost:${PORT}`);
   
+  // Add health endpoint
+  if (url.pathname === "/health") {
+    try {
+      const healthStatus = await checkHealth();
+      res.writeHead(healthStatus.status === 'healthy' ? 200 : 503, { 
+        "Content-Type": "application/json" 
+      });
+      res.end(JSON.stringify(healthStatus));
+      return;
+    } catch (error) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        status: 'unhealthy',
+        error: error instanceof Error ? error.message : 'Internal server error'
+      }));
+      return;
+    }
+  }
+
   if (url.pathname === "/v1/chat/completions") {
     if (req.method !== "POST") {
       res.writeHead(405, { "Content-Type": "text/plain" });
