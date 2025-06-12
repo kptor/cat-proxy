@@ -95,6 +95,7 @@ async function checkHealth(): Promise<{
     status: 'ok' | 'error';
     message?: string;
   }>;
+  message?: string;
 }> {
   const checks: Record<string, { status: 'ok' | 'error'; message?: string }> = {};
 
@@ -149,12 +150,14 @@ async function checkHealth(): Promise<{
     };
   }
 
-  // Determine overall status
-  const isHealthy = Object.values(checks).every(check => check.status === 'ok');
+  // Determine overall status - only consider environment and Azure connection
+  const criticalChecks = ['environment', 'azureConnection'];
+  const isHealthy = criticalChecks.every(key => checks[key]?.status === 'ok');
 
   return {
     status: isHealthy ? 'healthy' : 'unhealthy',
-    checks
+    checks,
+    message: isHealthy ? undefined : 'One or more critical checks failed'
   };
 }
 
