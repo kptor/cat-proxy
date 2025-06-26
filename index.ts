@@ -217,6 +217,9 @@ const server = http.createServer(async (req, res) => {
       
       const { messages, model: modelPayload } = parseResult.data;
       const deployment = modelPayload.uri;
+
+      // console.log("messages:", JSON.stringify(messages, null, 2));
+
       if (typeof deployment !== "string" || !isDeployment(deployment)) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Invalid deployment in model.uri" }));
@@ -240,7 +243,7 @@ const server = http.createServer(async (req, res) => {
         system: SYSTEM_PROMPT,
         messages: coreMessages,
       });
-      
+
       // Convert the AI SDK stream to a Node.js response
       const stream = result.toDataStreamResponse();
       const streamBody = stream.body;
@@ -316,11 +319,11 @@ function makeAzureProviderInstance() {
     return azure;
 }
   
-export type CompletionDeployment = "gpt-4.1" | "gpt-4o" | "gpt-4o-mini" | "gpt-4.1-nano"
+export type CompletionDeployment = "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano" | "gpt-4o" | "gpt-4o-mini" | "o3-mini"
   
 export function isDeployment(s: string): boolean {
     return (
-      s === "gpt-4.1" || s === "gpt-4o" || s === "gpt-4o-mini" || s === "o3-mini"
+      s === "gpt-4.1" || s === "gpt-4.1-mini" || s === "gpt-4.1-nano" || s === "gpt-4o" || s === "gpt-4o-mini" || s === "o3-mini"
     );
 }
   
@@ -335,7 +338,7 @@ const MessageContentSchema = z.object({
 });
 
 const MessageSchema = z.object({
-  role: z.enum(["system", "user"]),
+  role: z.enum(["system", "user", "assistant"]),
   parts: z.array(MessageContentSchema),
 });
 
